@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Toilathangngu</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="topbar">
+  <button id="muteBtn" title="Âm lượng">🔊</button>
+  <button id="likeBtn" title="Thích">♥</button>
+</div>
+
+<main class="card">
+  <section class="profile">
+    <img class="avatar" id="avatar" src="avatar.png" alt="avatar" onerror="this.style.background='#fff'">
+    <div class="info">
+      <h1 id="typed" class="glow"></h1><span class="cursor">|</span>
+      <p class="bio">Tạm biệt.</p>
+      <div class="socials">
+        <a href="https://tiktok.com" target="_blank" title="TikTok">♪</a>
+        <a href="https://facebook.com" target="_blank" title="Facebook">f</a>
+        <a href="https://roblox.com" target="_blank" title="Roblox">◼</a>
+        <a href="https://discord.com/users/1279063616150310957" target="_blank" title="Discord">D</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="discord" id="discord">
+    <div class="dc-avatar">
+      <img id="dcAvatar" src="" alt="">
+      <img id="dcDeco" class="deco" src="" alt="" hidden>
+      <span class="status" id="dcStatus"></span>
+    </div>
+    <div class="dc-info">
+      <div class="dc-name"><span id="dcName">Đang tải...</span><span class="tag" id="dcTag"></span></div>
+      <div class="dc-game" id="dcGame"></div>
+      <div class="dc-time" id="dcTime"></div>
+    </div>
+  </section>
+
+  <div class="stats">
+    <span>♥ <b id="likes">0</b></span><i></i>
+    <span>👁 <b id="views">0</b></span><i></i>
+    <span>📍 Bắc Ninh</span>
+  </div>
+
+  <section class="player">
+    <img class="cover" src="cover.jfif" alt="" onerror="this.style.background='#111'">
+    <div class="pl-main">
+      <div class="title" id="songTitle">meo</div>
+      <div class="bar">
+        <span id="cur">0:00</span>
+        <input type="range" id="seek" min="0" max="100" value="0">
+        <span id="dur">0:00</span>
+        <button id="prev">⏮</button>
+        <button id="play" class="play">▶</button>
+        <button id="next">⏭</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<audio id="audio" src="music.mp3" loop></audio>
+<script src="script.js"></script>
+</body>
+</html>
