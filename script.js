@@ -1,10 +1,7 @@
 const DISCORD_ID = "1279063616150310957";
 const NAME = "Toilathangtoi?";
-// Khung avatar chuyển động: bỏ ảnh PNG trong suốt vào thư mục frames/ rồi ghi tên vào đây (để trống nếu không dùng)
 const FRAMES = ["frames/1.png", "frames/2.png", "frames/3.png"];
 const $ = id => document.getElementById(id);
-
-/* ---------- Gõ chữ chạy ---------- */
 function startTyping(){
   let i = 0, dir = 1;
   const el = $("typed");
@@ -16,8 +13,6 @@ function startTyping(){
     setTimeout(tick, dir === 1 ? 140 : 70);
   })();
 }
-
-/* ---------- Khung avatar đổi liên tục (chỉ dùng các ảnh tải được) ---------- */
 (function frames(){
   const ok = [];
   let loaded = 0;
@@ -34,8 +29,6 @@ function startTyping(){
     (function next(){ f.src = ok[k++ % ok.length]; f.hidden = false; setTimeout(next, 2500); })();
   }
 })();
-
-/* ---------- Discord (Lanyard API) ---------- */
 let gameStart = null;
 const fmt = ms => {
   const s = Math.floor(ms / 1000), p = n => String(n).padStart(2, "0");
@@ -62,7 +55,6 @@ function renderDiscord(d){
   $("dcTag").innerHTML = g && g.tag
     ? (g.badge ? `<img src="https://cdn.discordapp.com/clan-badges/${g.identity_guild_id}/${g.badge}.png?size=32" width="16" height="16" alt="">` : "") + g.tag
     : "";
-  // Huy hiệu Active Developer (nếu tài khoản có)
   $("dcBadge").innerHTML = (u.public_flags & 4194304) ? DIAMOND : "";
 
   const game = d.activities.find(a => a.type === 0);
@@ -85,32 +77,41 @@ async function loadDiscord(){
 }
 loadDiscord(); setInterval(loadDiscord, 30000);
 setInterval(() => { if (gameStart) $("dcTime").textContent = fmt(Date.now() - gameStart); }, 1000);
-
-/* ---------- Lượt xem (đếm chung cho mọi người, bắt đầu từ 0) ----------
-   Mỗi trình duyệt chỉ tính 1 lần. Nếu dịch vụ đếm không truy cập được thì hiện 0. */
 const store = {
   get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } },
   set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} }
 };
 (async function views(){
-  const base = `https://api.counterapi.dev/v1/bio-${DISCORD_ID}/views`;
+  const ns = "hamysun-bio";
+  const urls = op => [
+    `https://api.counterapi.dev/v2/${ns}/views${op}`,
+    `https://api.counterapi.dev/v1/${ns}/views${op}`
+  ];
+  const pick = j => {
+    const c = j && (j.count ?? j.Count ?? j.value ?? (j.data && (j.data.up_count ?? j.data.count ?? j.data.value)));
+    return Number.isFinite(+c) ? +c : null;
+  };
   const first = !store.get("viewed");
-  const ctl = new AbortController(); setTimeout(() => ctl.abort(), 5000);
-  try {
-    const r = await fetch(first ? base + "/up" : base, { signal: ctl.signal });
-    const j = await r.json();
-    $("views").textContent = j.count || 0;
-    if (first) store.set("viewed", "1");
-  } catch (e) { $("views").textContent = "0"; }
+  for (const u of urls(first ? "/up" : "")) {
+    try {
+      const ctl = new AbortController(); setTimeout(() => ctl.abort(), 5000);
+      const r = await fetch(u, { signal: ctl.signal });
+      const j = await r.json();
+      console.log("[views]", u, r.status, j);
+      const c = pick(j);
+      if (r.ok && c !== null) {
+        $("views").textContent = c;
+        if (first) store.set("viewed", "1");
+        return;
+      }
+    } catch (e) { console.warn("[views] lỗi", u, e); }
+  }
+  $("views").textContent = "0";
 })();
-
-/* ---------- Thích (lưu theo từng trình duyệt) ---------- */
 let liked = store.get("liked") === "1";
 const paintLike = () => { $("likes").textContent = liked ? 1 : 0; $("likeBtn").classList.toggle("liked", liked); };
 paintLike();
 $("likeBtn").onclick = () => { liked = !liked; store.set("liked", liked ? "1" : "0"); paintLike(); };
-
-/* ---------- Trình phát nhạc & âm lượng ---------- */
 const audio = $("audio"), seek = $("seek"), vol = $("volumeSlider");
 const t = s => isNaN(s) ? "0:00" : `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 const setPlayIcon = playing => $("playIcon").setAttribute("icon", playing ? "ri:pause-fill" : "ri:play-fill");
@@ -136,8 +137,6 @@ $("play").onclick = async () => {
 $("prev").onclick = () => audio.currentTime = Math.max(0, audio.currentTime - 10);
 $("next").onclick = () => audio.currentTime = Math.min(audio.duration, audio.currentTime + 10);
 $("muteBtn").onclick = () => { audio.muted = !audio.muted; setMuteIcon(); };
-
-/* ---------- Màn hình "click to enter" ---------- */
 $("enter").addEventListener("click", () => {
   $("enter").classList.add("gone");
   document.body.classList.remove("pre");
