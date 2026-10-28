@@ -1,82 +1,4 @@
-const DISCORD_ID = "1279063616150310957";
-const NAME = "Toilathangtoi?";
-const FRAMES = ["frames/1.png", "frames/2.png", "frames/3.png"];
-const $ = id => document.getElementById(id);
-function startTyping(){
-  let i = 0, dir = 1;
-  const el = $("typed");
-  (function tick(){
-    el.textContent = NAME.slice(0, i);
-    if (dir === 1 && i === NAME.length) { dir = -1; return setTimeout(tick, 2500); }
-    if (dir === -1 && i === 0) { dir = 1; return setTimeout(tick, 600); }
-    i += dir;
-    setTimeout(tick, dir === 1 ? 140 : 70);
-  })();
-}
-(function frames(){
-  const ok = [];
-  let loaded = 0;
-  FRAMES.forEach(src => {
-    const im = new Image();
-    im.onload = () => { ok.push(src); done(); };
-    im.onerror = done;
-    im.src = src;
-  });
-  function done(){
-    if (++loaded < FRAMES.length || !ok.length) return;
-    let k = 0;
-    const f = $("frame");
-    (function next(){ f.src = ok[k++ % ok.length]; f.hidden = false; setTimeout(next, 2500); })();
-  }
-})();
-let gameStart = null;
-const fmt = ms => {
-  const s = Math.floor(ms / 1000), p = n => String(n).padStart(2, "0");
-  return `${p(Math.floor(s / 3600))}:${p(Math.floor(s % 3600 / 60))}:${p(s % 60)}`;
-};
-const DIAMOND = '<svg width="18" height="18" viewBox="0 0 24 24"><rect x="4.5" y="4.5" width="15" height="15" rx="3" transform="rotate(45 12 12)" fill="#3ddc97"/><path d="M8 11l4 4 4-4" fill="none" stroke="#0a0a0a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-
-function renderDiscord(d){
-  const u = d.discord_user;
-  $("dcName").textContent = u.global_name || u.username;
-  $("dcAvatar").src = u.avatar
-    ? `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.png?size=128`
-    : "https://cdn.discordapp.com/embed/avatars/0.png";
-  $("dcStatus").className = "status " + d.discord_status;
-  $("avatar").src = $("dcAvatar").src;
-
-  const deco = u.avatar_decoration_data;
-  if (deco && deco.asset) {
-    $("dcDeco").src = `https://cdn.discordapp.com/avatar-decoration-presets/${deco.asset}.png?size=128&passthrough=true`;
-    $("dcDeco").hidden = false;
-  } else $("dcDeco").hidden = true;
-
-  const g = u.primary_guild;
-  $("dcTag").innerHTML = g && g.tag
-    ? (g.badge ? `<img src="https://cdn.discordapp.com/clan-badges/${g.identity_guild_id}/${g.badge}.png?size=32" width="16" height="16" alt="">` : "") + g.tag
-    : "";
-  $("dcBadge").innerHTML = (u.public_flags & 4194304) ? DIAMOND : "";
-
-  const game = d.activities.find(a => a.type === 0);
-  if (game) {
-    $("dcGame").textContent = game.name;
-    gameStart = game.timestamps && game.timestamps.start;
-  } else {
-    $("dcGame").textContent = d.discord_status === "offline" ? "Offline" : "Không chơi game";
-    gameStart = null;
-  }
-  $("dcTimeWrap").hidden = !gameStart;
-}
-async function loadDiscord(){
-  try {
-    const r = await fetch(`https://api.lanyard.rest/v1/users/${DISCORD_ID}`);
-    const j = await r.json();
-    if (j.success) renderDiscord(j.data);
-    else $("dcName").textContent = "Hãy vào server Lanyard để kết nối";
-  } catch (e) { $("dcName").textContent = "Không tải được Discord"; }
-}
-loadDiscord(); setInterval(loadDiscord, 30000);
-setInterval(() => { if (gameStart) $("dcTime").textContent = fmt(Date.now() - gameStart); }, 1000);
+/* ---------- Lượt xem (Đếm chung toàn cầu qua CounterAPI có dự phòng) ---------- */
 const store = {
   get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } },
   set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} }
@@ -85,32 +7,44 @@ const store = {
 (async function views(){
   const base = `https://api.counterapi.dev/v1/bio-${DISCORD_ID}/views`;
   const first = !store.get("viewed");
-  const ctl = new AbortController(); setTimeout(() => ctl.abort(), 5000);
   try {
-    const r = await fetch(first ? base + "/up" : base, { signal: ctl.signal });
+    let r = await fetch(first ? base + "/up" : base);
+    if (!r.ok) {
+      // Nếu chưa khởi tạo, gọi lệnh up để tạo mới
+      r = await fetch(base + "/up");
+    }
     const j = await r.json();
     $("views").textContent = j.count || 0;
     if (first) store.set("viewed", "1");
-  } catch (e) { $("views").textContent = "0"; }
+  } catch (e) { 
+    $("views").textContent = "0"; 
+  }
 })();
+
+/* ---------- Thích / Tim (Đếm chung toàn cầu có dự phòng) ---------- */
 const likeBase = `https://api.counterapi.dev/v1/bio-${DISCORD_ID}/likes`;
 
 async function updateLikeUI(isLiked) {
   $("likeBtn").classList.toggle("liked", isLiked);
 }
+
 (async function initLikes(){
   try {
-    const r = await fetch(likeBase);
+    let r = await fetch(likeBase);
+    if (!r.ok) {
+      r = await fetch(likeBase + "/up"); // Khởi tạo nếu chưa có
+      await fetch(likeBase + "/down"); // Trả lại số lượng ban đầu
+    }
     const j = await r.json();
     $("likes").textContent = j.count || 0;
   } catch (e) {
     $("likes").textContent = "0";
   }
+  
   const hasLiked = store.get("liked") === "1";
   updateLikeUI(hasLiked);
 })();
 
-// Xử lý sự kiện khi bấm nút Thích
 $("likeBtn").onclick = async () => {
   let hasLiked = store.get("liked") === "1";
   const endpoint = hasLiked ? `${likeBase}/down` : `${likeBase}/up`;
@@ -119,43 +53,11 @@ $("likeBtn").onclick = async () => {
     const r = await fetch(endpoint);
     const j = await r.json();
     $("likes").textContent = j.count || 0;
+    
     hasLiked = !hasLiked;
     store.set("liked", hasLiked ? "1" : "0");
     updateLikeUI(hasLiked);
   } catch (e) {
-    console.error("Lỗi khi cập nhật lượt thích:", e);
+    console.error("Lỗi kết nối tim:", e);
   }
 };
-const audio = $("audio"), seek = $("seek"), vol = $("volumeSlider");
-const t = s => isNaN(s) ? "0:00" : `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
-const setPlayIcon = playing => $("playIcon").setAttribute("icon", playing ? "ri:pause-fill" : "ri:play-fill");
-const setMuteIcon = () => $("muteIcon").setAttribute("icon", (audio.muted || audio.volume == 0) ? "ri:volume-mute-line" : "ri:volume-up-line");
-const paintSeek = () => seek.style.setProperty("--p", seek.value + "%");
-
-audio.addEventListener("loadedmetadata", () => { $("dur").textContent = t(audio.duration); audio.volume = vol.value; });
-audio.addEventListener("timeupdate", () => {
-  $("cur").textContent = t(audio.currentTime);
-  seek.value = (audio.currentTime / audio.duration) * 100 || 0;
-  paintSeek();
-});
-seek.oninput = () => { audio.currentTime = (seek.value / 100) * audio.duration; paintSeek(); };
-vol.oninput = () => { audio.volume = vol.value; audio.muted = false; setMuteIcon(); };
-audio.addEventListener("error", () => { $("songTitle").textContent = "Lỗi: không tìm thấy file music.mp3"; setPlayIcon(false); });
-
-$("play").onclick = async () => {
-  if (audio.paused) {
-    try { await audio.play(); setPlayIcon(true); }
-    catch (e) { $("songTitle").textContent = "Lỗi: " + e.name + (audio.error ? " | mã " + audio.error.code : ""); }
-  } else { audio.pause(); setPlayIcon(false); }
-};
-$("prev").onclick = () => audio.currentTime = Math.max(0, audio.currentTime - 10);
-$("next").onclick = () => audio.currentTime = Math.min(audio.duration, audio.currentTime + 10);
-$("muteBtn").onclick = () => { audio.muted = !audio.muted; setMuteIcon(); };
-$("enter").addEventListener("click", () => {
-  $("enter").classList.add("gone");
-  document.body.classList.remove("pre");
-  document.body.classList.add("in");
-  startTyping();
-  audio.volume = vol.value;
-  audio.play().then(() => setPlayIcon(true)).catch(() => {});
-}, { once: true });
