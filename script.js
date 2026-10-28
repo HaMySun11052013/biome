@@ -1,9 +1,11 @@
 const DISCORD_ID = "1279063616150310957";
-const NAME = "Toilathangngu";
+const NAME = "Toilathangtoi?";
+// Khung avatar chuyển động: bỏ ảnh PNG trong suốt vào thư mục frames/ rồi ghi tên vào đây (để trống nếu không dùng)
+const FRAMES = ["frames/1.png", "frames/2.png", "frames/3.png"];
 const $ = id => document.getElementById(id);
 
 /* ---------- Gõ chữ chạy ---------- */
-(function typing(){
+function startTyping(){
   let i = 0, dir = 1;
   const el = $("typed");
   (function tick(){
@@ -13,37 +15,56 @@ const $ = id => document.getElementById(id);
     i += dir;
     setTimeout(tick, dir === 1 ? 140 : 70);
   })();
+}
+
+/* ---------- Khung avatar đổi liên tục (chỉ dùng các ảnh tải được) ---------- */
+(function frames(){
+  const ok = [];
+  let loaded = 0;
+  FRAMES.forEach(src => {
+    const im = new Image();
+    im.onload = () => { ok.push(src); done(); };
+    im.onerror = done;
+    im.src = src;
+  });
+  function done(){
+    if (++loaded < FRAMES.length || !ok.length) return;
+    let k = 0;
+    const f = $("frame");
+    (function next(){ f.src = ok[k++ % ok.length]; f.hidden = false; setTimeout(next, 2500); })();
+  }
 })();
 
-/* ---------- Discord (Lanyard API) ----------
-   Cần vào server Discord của Lanyard: https://discord.gg/lanyard
-   để API theo dõi được tài khoản của bạn. */
+/* ---------- Discord (Lanyard API) ---------- */
 let gameStart = null;
-function fmt(ms){
-  const s = Math.floor(ms/1000), h = String(Math.floor(s/3600)).padStart(2,"0");
-  return `${h}:${String(Math.floor(s%3600/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
-}
+const fmt = ms => {
+  const s = Math.floor(ms / 1000), p = n => String(n).padStart(2, "0");
+  return `${p(Math.floor(s / 3600))}:${p(Math.floor(s % 3600 / 60))}:${p(s % 60)}`;
+};
+const DIAMOND = '<svg width="18" height="18" viewBox="0 0 24 24"><rect x="4.5" y="4.5" width="15" height="15" rx="3" transform="rotate(45 12 12)" fill="#3ddc97"/><path d="M8 11l4 4 4-4" fill="none" stroke="#0a0a0a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
 function renderDiscord(d){
   const u = d.discord_user;
   $("dcName").textContent = u.global_name || u.username;
   $("dcAvatar").src = u.avatar
     ? `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.png?size=128`
-    : `https://cdn.discordapp.com/embed/avatars/0.png`;
+    : "https://cdn.discordapp.com/embed/avatars/0.png";
   $("dcStatus").className = "status " + d.discord_status;
   $("avatar").src = $("dcAvatar").src;
 
-  // Viền avatar Discord (avatar decoration)
   const deco = u.avatar_decoration_data;
   if (deco && deco.asset) {
     $("dcDeco").src = `https://cdn.discordapp.com/avatar-decoration-presets/${deco.asset}.png?size=128&passthrough=true`;
     $("dcDeco").hidden = false;
   } else $("dcDeco").hidden = true;
 
-  // Tag clan (vd: "Trẩu")
   const g = u.primary_guild;
   $("dcTag").innerHTML = g && g.tag
-    ? (g.badge ? `<img src="https://cdn.discordapp.com/clan-badges/${g.identity_guild_id}/${g.badge}.png?size=32" style="width:14px;vertical-align:middle;margin-right:3px">` : "") + g.tag
+    ? (g.badge ? `<img src="https://cdn.discordapp.com/clan-badges/${g.identity_guild_id}/${g.badge}.png?size=32" width="16" height="16" alt="">` : "") + g.tag
     : "";
+  // Huy hiệu Active Developer (nếu tài khoản có)
+  $("dcBadge").innerHTML = (u.public_flags & 4194304) ? DIAMOND : "";
+
   const game = d.activities.find(a => a.type === 0);
   if (game) {
     $("dcGame").textContent = game.name;
@@ -51,8 +72,8 @@ function renderDiscord(d){
   } else {
     $("dcGame").textContent = d.discord_status === "offline" ? "Offline" : "Không chơi game";
     gameStart = null;
-    $("dcTime").textContent = "";
   }
+  $("dcTimeWrap").hidden = !gameStart;
 }
 async function loadDiscord(){
   try {
@@ -60,46 +81,68 @@ async function loadDiscord(){
     const j = await r.json();
     if (j.success) renderDiscord(j.data);
     else $("dcName").textContent = "Hãy vào server Lanyard để kết nối";
-  } catch(e){ $("dcName").textContent = "Không tải được Discord"; }
+  } catch (e) { $("dcName").textContent = "Không tải được Discord"; }
 }
 loadDiscord(); setInterval(loadDiscord, 30000);
-setInterval(() => { if (gameStart) $("dcTime").textContent = "🎮 " + fmt(Date.now() - gameStart); }, 1000);
+setInterval(() => { if (gameStart) $("dcTime").textContent = fmt(Date.now() - gameStart); }, 1000);
 
-/* ---------- Lượt xem / thích (lưu trong trình duyệt) ---------- */
-const store = (k, v) => { try { if (v === undefined) return +localStorage.getItem(k)||0; localStorage.setItem(k, v); } catch(e){ return 0; } };
-store("views", store("views") + 1);
-$("views").textContent = store("views");
-let liked = store("liked") === 1;
-$("likes").textContent = liked ? 1 : 0;
-$("likeBtn").classList.toggle("liked", liked);
-$("likeBtn").onclick = () => {
-  liked = !liked; store("liked", liked ? 1 : 0);
-  $("likes").textContent = liked ? 1 : 0;
-  $("likeBtn").classList.toggle("liked", liked);
+/* ---------- Lượt xem (đếm chung cho mọi người, bắt đầu từ 0) ----------
+   Mỗi trình duyệt chỉ tính 1 lần. Nếu dịch vụ đếm không truy cập được thì hiện 0. */
+const store = {
+  get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} }
 };
+(async function views(){
+  const base = `https://api.counterapi.dev/v1/bio-${DISCORD_ID}/views`;
+  const first = !store.get("viewed");
+  const ctl = new AbortController(); setTimeout(() => ctl.abort(), 5000);
+  try {
+    const r = await fetch(first ? base + "/up" : base, { signal: ctl.signal });
+    const j = await r.json();
+    $("views").textContent = j.count || 0;
+    if (first) store.set("viewed", "1");
+  } catch (e) { $("views").textContent = "0"; }
+})();
 
-/* ---------- Trình phát nhạc ---------- */
-const audio = $("audio"), seek = $("seek");
-const t = s => isNaN(s) ? "0:00" : `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,"0")}`;
-audio.addEventListener("loadedmetadata", () => $("dur").textContent = t(audio.duration));
+/* ---------- Thích (lưu theo từng trình duyệt) ---------- */
+let liked = store.get("liked") === "1";
+const paintLike = () => { $("likes").textContent = liked ? 1 : 0; $("likeBtn").classList.toggle("liked", liked); };
+paintLike();
+$("likeBtn").onclick = () => { liked = !liked; store.set("liked", liked ? "1" : "0"); paintLike(); };
+
+/* ---------- Trình phát nhạc & âm lượng ---------- */
+const audio = $("audio"), seek = $("seek"), vol = $("volumeSlider");
+const t = s => isNaN(s) ? "0:00" : `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+const setPlayIcon = playing => $("playIcon").setAttribute("icon", playing ? "ri:pause-fill" : "ri:play-fill");
+const setMuteIcon = () => $("muteIcon").setAttribute("icon", (audio.muted || audio.volume == 0) ? "ri:volume-mute-line" : "ri:volume-up-line");
+const paintSeek = () => seek.style.setProperty("--p", seek.value + "%");
+
+audio.addEventListener("loadedmetadata", () => { $("dur").textContent = t(audio.duration); audio.volume = vol.value; });
 audio.addEventListener("timeupdate", () => {
   $("cur").textContent = t(audio.currentTime);
   seek.value = (audio.currentTime / audio.duration) * 100 || 0;
+  paintSeek();
 });
-seek.oninput = () => audio.currentTime = (seek.value / 100) * audio.duration;
-audio.addEventListener("error", () => {
-  $("songTitle").textContent = "Lỗi: không tìm thấy file music.mp3";
-  $("play").textContent = "▶";
-});
+seek.oninput = () => { audio.currentTime = (seek.value / 100) * audio.duration; paintSeek(); };
+vol.oninput = () => { audio.volume = vol.value; audio.muted = false; setMuteIcon(); };
+audio.addEventListener("error", () => { $("songTitle").textContent = "Lỗi: không tìm thấy file music.mp3"; setPlayIcon(false); });
+
 $("play").onclick = async () => {
   if (audio.paused) {
-    try { await audio.play(); $("play").textContent = "⏸"; }
-    catch (e) {
-      const code = audio.error ? " | mã " + audio.error.code : "";
-      $("songTitle").textContent = "Lỗi: " + e.name + code;
-    }
-  } else { audio.pause(); $("play").textContent = "▶"; }
+    try { await audio.play(); setPlayIcon(true); }
+    catch (e) { $("songTitle").textContent = "Lỗi: " + e.name + (audio.error ? " | mã " + audio.error.code : ""); }
+  } else { audio.pause(); setPlayIcon(false); }
 };
 $("prev").onclick = () => audio.currentTime = Math.max(0, audio.currentTime - 10);
 $("next").onclick = () => audio.currentTime = Math.min(audio.duration, audio.currentTime + 10);
-$("muteBtn").onclick = () => { audio.muted = !audio.muted; $("muteBtn").textContent = audio.muted ? "🔇" : "🔊"; };
+$("muteBtn").onclick = () => { audio.muted = !audio.muted; setMuteIcon(); };
+
+/* ---------- Màn hình "click to enter" ---------- */
+$("enter").addEventListener("click", () => {
+  $("enter").classList.add("gone");
+  document.body.classList.remove("pre");
+  document.body.classList.add("in");
+  startTyping();
+  audio.volume = vol.value;
+  audio.play().then(() => setPlayIcon(true)).catch(() => {});
+}, { once: true });
