@@ -81,37 +81,51 @@ const store = {
   get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } },
   set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} }
 };
+
 (async function views(){
-  const ns = "hamysun-bio";
-  const urls = op => [
-    `https://api.counterapi.dev/v2/${ns}/views${op}`,
-    `https://api.counterapi.dev/v1/${ns}/views${op}`
-  ];
-  const pick = j => {
-    const c = j && (j.count ?? j.Count ?? j.value ?? (j.data && (j.data.up_count ?? j.data.count ?? j.data.value)));
-    return Number.isFinite(+c) ? +c : null;
-  };
+  const base = `https://api.counterapi.dev/v1/bio-${DISCORD_ID}/views`;
   const first = !store.get("viewed");
-  for (const u of urls(first ? "/up" : "")) {
-    try {
-      const ctl = new AbortController(); setTimeout(() => ctl.abort(), 5000);
-      const r = await fetch(u, { signal: ctl.signal });
-      const j = await r.json();
-      console.log("[views]", u, r.status, j);
-      const c = pick(j);
-      if (r.ok && c !== null) {
-        $("views").textContent = c;
-        if (first) store.set("viewed", "1");
-        return;
-      }
-    } catch (e) { console.warn("[views] lỗi", u, e); }
-  }
-  $("views").textContent = "0";
+  const ctl = new AbortController(); setTimeout(() => ctl.abort(), 5000);
+  try {
+    const r = await fetch(first ? base + "/up" : base, { signal: ctl.signal });
+    const j = await r.json();
+    $("views").textContent = j.count || 0;
+    if (first) store.set("viewed", "1");
+  } catch (e) { $("views").textContent = "0"; }
 })();
-let liked = store.get("liked") === "1";
-const paintLike = () => { $("likes").textContent = liked ? 1 : 0; $("likeBtn").classList.toggle("liked", liked); };
-paintLike();
-$("likeBtn").onclick = () => { liked = !liked; store.set("liked", liked ? "1" : "0"); paintLike(); };
+const likeBase = `https://api.counterapi.dev/v1/bio-${DISCORD_ID}/likes`;
+
+async function updateLikeUI(isLiked) {
+  $("likeBtn").classList.toggle("liked", isLiked);
+}
+(async function initLikes(){
+  try {
+    const r = await fetch(likeBase);
+    const j = await r.json();
+    $("likes").textContent = j.count || 0;
+  } catch (e) {
+    $("likes").textContent = "0";
+  }
+  const hasLiked = store.get("liked") === "1";
+  updateLikeUI(hasLiked);
+})();
+
+// Xử lý sự kiện khi bấm nút Thích
+$("likeBtn").onclick = async () => {
+  let hasLiked = store.get("liked") === "1";
+  const endpoint = hasLiked ? `${likeBase}/down` : `${likeBase}/up`;
+  
+  try {
+    const r = await fetch(endpoint);
+    const j = await r.json();
+    $("likes").textContent = j.count || 0;
+    hasLiked = !hasLiked;
+    store.set("liked", hasLiked ? "1" : "0");
+    updateLikeUI(hasLiked);
+  } catch (e) {
+    console.error("Lỗi khi cập nhật lượt thích:", e);
+  }
+};
 const audio = $("audio"), seek = $("seek"), vol = $("volumeSlider");
 const t = s => isNaN(s) ? "0:00" : `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 const setPlayIcon = playing => $("playIcon").setAttribute("icon", playing ? "ri:pause-fill" : "ri:play-fill");
